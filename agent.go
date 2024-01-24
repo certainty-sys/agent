@@ -115,16 +115,23 @@ func GetLocalIPs() ([]net.IP, error) {
 }
 
 func main() {
+	var wg = sync.WaitGroup{}
 	ips, err := GetLocalIPs()
 	if err != nil {
 		fmt.Printf("Failed to get local IPs: %s\n", err)
 		return
 	}
 	for _, ip := range ips {
+		wg.Add(1)
+		go func(ip net.IP) {
+			defer wg.Done()
 		ps := &PortScanner{
 			ip:   ip.String(),
 			lock: semaphore.NewWeighted(Ulimit()),
 		}
 		ps.Start(1, 65535, 500*time.Millisecond)
+		}(ip)
 	}
+
+	wg.Wait()
 }
