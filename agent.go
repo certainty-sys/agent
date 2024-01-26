@@ -12,6 +12,9 @@ import (
 	"sync"
 	"time"
 
+	_ "agent/logging"
+
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -49,7 +52,7 @@ func CheckCert(ip string, port int, timeout time.Duration) {
 	cancel() // Ensure cancel is always called
 
 	if err != nil {
-		// fmt.Printf("Failed to connect to %s: %s\n", hostString, err)
+		logrus.Warnf("Failed to connect to %s: %v\n", hostString, err)
 		return
 	}
 
@@ -115,6 +118,8 @@ func GetLocalIPs() ([]net.IP, error) {
 }
 
 func main() {
+	logrus.SetLevel(logrus.DebugLevel)
+
 	var wg = sync.WaitGroup{}
 	ips, err := GetLocalIPs()
 	if err != nil {
@@ -125,11 +130,11 @@ func main() {
 		wg.Add(1)
 		go func(ip net.IP) {
 			defer wg.Done()
-		ps := &PortScanner{
-			ip:   ip.String(),
-			lock: semaphore.NewWeighted(Ulimit()),
-		}
-		ps.Start(1, 65535, 500*time.Millisecond)
+			ps := &PortScanner{
+				ip:   ip.String(),
+				lock: semaphore.NewWeighted(Ulimit()),
+			}
+			ps.Start(1, 65535, 500*time.Millisecond)
 		}(ip)
 	}
 
