@@ -33,14 +33,14 @@ hosts:
 
 	yaml.Unmarshal([]byte(yamlString), &conf)
 
-	gotPorts := BuildCidrPortList(conf, "test1")
+	gotPorts := BuildCidrPortList(conf.Cidrs["test1"], conf.SkipPorts)
 	wantPorts := []int{443}
 
 	if !reflect.DeepEqual(gotPorts, wantPorts) {
 		t.Errorf("Got %v, wanted %v", gotPorts, wantPorts)
 	}
 
-	gotPorts = BuildCidrPortList(conf, "test2")
+	gotPorts = BuildCidrPortList(conf.Cidrs["test2"], conf.SkipPorts)
 	wantPorts = []int{20, 21, 23, 24, 25, 77, 78, 79, 81, 82, 83, 443, 8080}
 
 	if !reflect.DeepEqual(gotPorts, wantPorts) {

@@ -38,27 +38,29 @@ func main() {
 
 	conf, err := config.LoadConfig("config.yml")
 
-	portList := config.BuildCidrPortList(conf, "dmz")
-	fmt.Println(portList) // TODO Use portList
+	for _, cidr := range conf.Cidrs {
+		ips := config.BuildCidrIpList(cidr)
 
-	var wg = sync.WaitGroup{}
-	ips, err := scanner.GetLocalIPs()
-	if err != nil {
-		fmt.Printf("Failed to get local IPs: %s\n", err)
-		return
+		portList := config.BuildCidrPortList(cidr, conf.SkipPorts)
+
+		var wg = sync.WaitGroup{}
+		if err != nil {
+			fmt.Printf("Failed to get local IPs: %s\n", err)
+			return
+		}
+
+		for _, ip := range ips {
+			wg.Add(1)
+			go func(ip net.IP) {
+				defer wg.Done()
+				ps := &scanner.PortScanner{
+					Ip:   ip.String(),
+					Lock: semaphore.NewWeighted(Ulimit()),
+				}
+				ps.Start(portList, 500*time.Millisecond)
+			}(ip)
+		}
+
+		wg.Wait()
 	}
-
-	for _, ip := range ips {
-		wg.Add(1)
-		go func(ip net.IP) {
-			defer wg.Done()
-			ps := &scanner.PortScanner{
-				Ip:   ip.String(),
-				Lock: semaphore.NewWeighted(Ulimit()),
-			}
-			ps.Start(1, 65535, 500*time.Millisecond)
-		}(ip)
-	}
-
-	wg.Wait()
 }

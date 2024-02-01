@@ -64,11 +64,11 @@ func ScanPort(ip string, port int, timeout time.Duration) {
 	CheckCert(ip, port, 10*time.Second)
 }
 
-func (ps *PortScanner) Start(f int, l int, timeout time.Duration) {
+func (ps *PortScanner) Start(portList []int, timeout time.Duration) {
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
 
-	for port := f; port <= l; port++ {
+	for _, port := range portList {
 		ps.Lock.Acquire(context.TODO(), 1)
 		wg.Add(1)
 		go func(port int) {
@@ -77,25 +77,4 @@ func (ps *PortScanner) Start(f int, l int, timeout time.Duration) {
 			ScanPort(ps.Ip, port, timeout)
 		}(port)
 	}
-}
-
-func GetLocalIPs() ([]net.IP, error) {
-	var ips []net.IP
-	addresses, err := net.InterfaceAddrs()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, addr := range addresses {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				ips = append(ips, ipnet.IP)
-			}
-		}
-	}
-	return ips, nil
-}
-
-func BuildScanList() {
-
 }

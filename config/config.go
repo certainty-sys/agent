@@ -1,6 +1,9 @@
 package config
 
 import (
+	"encoding/binary"
+	"log"
+	"net"
 	"os"
 	"slices"
 
@@ -54,10 +57,8 @@ func LoadConfig(filename string) (Configuration, error) {
 	return c, nil
 }
 
-func BuildCidrPortList(config Configuration, cidrName string) []int {
+func BuildCidrPortList(cidr Cidr, globalSkipPorts []int) []int {
 	var portList []int
-
-	cidr := config.Cidrs[cidrName]
 
 	ports := cidr.Ports
 
@@ -80,9 +81,43 @@ func BuildCidrPortList(config Configuration, cidrName string) []int {
 	cleanCidrPortList := funk.Subtract(portList, cidr.SkipPorts)
 
 	// Remove the globally skipped ports
-	cleanPortList := funk.Subtract(cleanCidrPortList, config.SkipPorts).([]int)
+	cleanPortList := funk.Subtract(cleanCidrPortList, globalSkipPorts).([]int)
 
 	// De-duplicate the list
 	slices.Sort(cleanPortList)
 	return slices.Compact[[]int](cleanPortList)
+}
+
+func BuildCidrIpList(cidr Cidr) []net.IP {
+	var ipList []net.IP
+
+	// convert string to IPNet struct
+	_, ipv4Net, err := net.ParseCIDR(cidr.Cidr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// convert IPNet struct mask and address to uint32
+	// network is BigEndian
+	mask := binary.BigEndian.Uint32(ipv4Net.Mask)
+	start := binary.BigEndian.Uint32(ipv4Net.IP)
+
+	// Skip network address
+	start++
+
+	// find the final address
+	finish := (start & mask) | (mask ^ 0xffffffff)
+
+	// Skip network broadcast
+	finish--
+
+	// loop through addresses as uint32
+	for i := start; i <= finish; i++ {
+		// convert back to net.IP
+		ip := make(net.IP, 4)
+		binary.BigEndian.PutUint32(ip, i)
+		ipList = append(ipList, ip)
+	}
+
+	return ipList
 }
