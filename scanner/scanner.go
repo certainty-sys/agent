@@ -3,7 +3,7 @@ package scanner
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"strings"
@@ -22,8 +22,6 @@ type PortScanner struct {
 }
 
 func CheckCert(ip string, port int, timeout time.Duration) api.Endpoint {
-	var certList []api.CertDetails
-
 	conf := &tls.Config{InsecureSkipVerify: true}
 
 	hostString := fmt.Sprintf("%s:%d", ip, port)
@@ -44,21 +42,25 @@ func CheckCert(ip string, port int, timeout time.Duration) api.Endpoint {
 
 	tlsConn := conn.(*tls.Conn)
 	certs := tlsConn.ConnectionState().PeerCertificates
-	for _, cert := range certs {
-		certificate := api.CertDetails{
-			CommonName: cert.Subject.CommonName,
-			Expiry:     cert.NotAfter.Format("2006-January-02"),
-			Issuer:     cert.Issuer.CommonName,
-			Pem:        base64.StdEncoding.EncodeToString(cert.Raw),
-		}
 
-		certList = append(certList, certificate)
+	cert := certs[0]
+
+	pem := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: cert.Raw,
+	})
+
+	certificate := api.CertDetails{
+		CommonName: cert.Subject.CommonName,
+		Expiry:     cert.NotAfter.Format("2006-January-02"),
+		Issuer:     cert.Issuer.CommonName,
+		Pem:        string(pem),
 	}
 
 	return api.Endpoint{
 		Name:        ip,
 		Port:        port,
-		Certificate: certList,
+		Certificate: certificate,
 	}
 }
 

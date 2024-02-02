@@ -40,13 +40,13 @@ func main() {
 	conf, err := config.LoadConfig("config.yml")
 
 	var endpointList []api.Endpoint
+	var wg = sync.WaitGroup{}
 
 	for _, cidr := range conf.Cidrs {
 		ips := config.BuildCidrIpList(cidr)
 
 		portList := config.BuildCidrPortList(cidr, conf.SkipPorts)
 
-		var wg = sync.WaitGroup{}
 		if err != nil {
 			fmt.Printf("Failed to get local IPs: %s\n", err)
 			return
@@ -64,15 +64,15 @@ func main() {
 				endpointList = append(endpointList, endpoints...)
 			}(ip)
 		}
-
-		wg.Wait()
-
-		agentData := api.Agent{
-			Name:      conf.AgentName,
-			Version:   "0.0.1a",
-			Endpoints: endpointList,
-		}
-
-		api.Send(agentData, conf.ApiKey)
 	}
+
+	wg.Wait()
+
+	agentData := api.Agent{
+		Name:      conf.AgentName,
+		Version:   "0.0.1a",
+		Endpoints: endpointList,
+	}
+
+	api.Send(agentData, conf.ApiKey)
 }

@@ -18,7 +18,7 @@ type CertDetails struct {
 type Endpoint struct {
 	Name        string        `json:"name"`
 	Port        int           `json:"port"`
-	Certificate []CertDetails `json:"certificate"`
+	Certificate CertDetails `json:"certificate"`
 }
 
 type Agent struct {
