@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"os/exec"
@@ -10,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"agent/api"
 	"agent/config"
 	_ "agent/logging"
 	"agent/scanner"
@@ -17,12 +17,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
 )
-
-type Agent struct {
-	Name      string             `json:"agent_name"`
-	Version   string             `json:"agent_version"`
-	Endpoints []scanner.Endpoint `json:"endpoints"`
-}
 
 func Ulimit() int64 {
 	out, err := exec.Command("env", "bash", "-c", "ulimit -n").Output()
@@ -45,7 +39,7 @@ func main() {
 
 	conf, err := config.LoadConfig("config.yml")
 
-	var endpointList []scanner.Endpoint
+	var endpointList []api.Endpoint
 
 	for _, cidr := range conf.Cidrs {
 		ips := config.BuildCidrIpList(cidr)
@@ -73,13 +67,12 @@ func main() {
 
 		wg.Wait()
 
-		agentData := Agent{
+		agentData := api.Agent{
 			Name:      conf.AgentName,
 			Version:   "0.0.1a",
 			Endpoints: endpointList,
 		}
 
-		data, _ := json.MarshalIndent(agentData, "", "  ")
-		fmt.Println(string(data))
+		api.Send(agentData, conf.ApiKey)
 	}
 }

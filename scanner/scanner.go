@@ -12,6 +12,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
+
+	"agent/api"
 )
 
 type PortScanner struct {
@@ -19,21 +21,8 @@ type PortScanner struct {
 	Lock *semaphore.Weighted
 }
 
-type CertDetails struct {
-	CommonName string `json:"common_name"`
-	Issuer     string `json:"issuer"`
-	Expiry     string `json:"expiry"`
-	Pem        string `json:"PEM"`
-}
-
-type Endpoint struct {
-	Name        string        `json:"name"`
-	Port        int           `json:"port"`
-	Certificate []CertDetails `json:"certificate"`
-}
-
-func CheckCert(ip string, port int, timeout time.Duration) Endpoint {
-	var certList []CertDetails
+func CheckCert(ip string, port int, timeout time.Duration) api.Endpoint {
+	var certList []api.CertDetails
 
 	conf := &tls.Config{InsecureSkipVerify: true}
 
@@ -48,7 +37,7 @@ func CheckCert(ip string, port int, timeout time.Duration) Endpoint {
 
 	if err != nil {
 		logrus.Warnf("Failed to connect to %s: %v\n", hostString, err)
-		return Endpoint{}
+		return api.Endpoint{}
 	}
 
 	defer conn.Close()
@@ -56,7 +45,7 @@ func CheckCert(ip string, port int, timeout time.Duration) Endpoint {
 	tlsConn := conn.(*tls.Conn)
 	certs := tlsConn.ConnectionState().PeerCertificates
 	for _, cert := range certs {
-		certificate := CertDetails{
+		certificate := api.CertDetails{
 			CommonName: cert.Subject.CommonName,
 			Expiry:     cert.NotAfter.Format("2006-January-02"),
 			Issuer:     cert.Issuer.CommonName,
@@ -66,14 +55,14 @@ func CheckCert(ip string, port int, timeout time.Duration) Endpoint {
 		certList = append(certList, certificate)
 	}
 
-	return Endpoint{
+	return api.Endpoint{
 		Name:        ip,
 		Port:        port,
 		Certificate: certList,
 	}
 }
 
-func ScanPort(ip string, port int, timeout time.Duration) Endpoint {
+func ScanPort(ip string, port int, timeout time.Duration) api.Endpoint {
 	target := fmt.Sprintf("%s:%d", ip, port)
 	conn, err := net.DialTimeout("tcp", target, timeout)
 
@@ -82,7 +71,7 @@ func ScanPort(ip string, port int, timeout time.Duration) Endpoint {
 			time.Sleep(timeout)
 			ScanPort(ip, port, timeout)
 		}
-		return Endpoint{}
+		return api.Endpoint{}
 	}
 
 	conn.Close()
@@ -91,12 +80,11 @@ func ScanPort(ip string, port int, timeout time.Duration) Endpoint {
 	return endpoint
 }
 
-func (ps *PortScanner) Start(portList []int, timeout time.Duration) []Endpoint {
+func (ps *PortScanner) Start(portList []int, timeout time.Duration) []api.Endpoint {
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
 
-	var endpoint Endpoint
-	var endpointList []Endpoint
+	var endpointList []api.Endpoint
 
 	for _, port := range portList {
 		ps.Lock.Acquire(context.TODO(), 1)
@@ -104,7 +92,7 @@ func (ps *PortScanner) Start(portList []int, timeout time.Duration) []Endpoint {
 		go func(port int) {
 			defer ps.Lock.Release(1)
 			defer wg.Done()
-			endpoint = ScanPort(ps.Ip, port, timeout)
+			endpoint := ScanPort(ps.Ip, port, timeout)
 			if endpoint.Name != "" {
 				endpointList = append(endpointList, endpoint)
 			}
