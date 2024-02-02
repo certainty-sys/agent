@@ -3,6 +3,7 @@ package scanner
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"strings"
@@ -18,7 +19,22 @@ type PortScanner struct {
 	Lock *semaphore.Weighted
 }
 
-func CheckCert(ip string, port int, timeout time.Duration) {
+type CertDetails struct {
+	CommonName string `json:"common_name"`
+	Issuer     string `json:"issuer"`
+	Expiry     string `json:"expiry"`
+	Pem        string `json:"PEM"`
+}
+
+type Endpoint struct {
+	Name        string        `json:"name"`
+	Port        int           `json:"port"`
+	Certificate []CertDetails `json:"certificate"`
+}
+
+func CheckCert(ip string, port int, timeout time.Duration) Endpoint {
+	var certList []CertDetails
+
 	conf := &tls.Config{InsecureSkipVerify: true}
 
 	hostString := fmt.Sprintf("%s:%d", ip, port)
@@ -32,7 +48,7 @@ func CheckCert(ip string, port int, timeout time.Duration) {
 
 	if err != nil {
 		logrus.Warnf("Failed to connect to %s: %v\n", hostString, err)
-		return
+		return Endpoint{}
 	}
 
 	defer conn.Close()
@@ -40,15 +56,24 @@ func CheckCert(ip string, port int, timeout time.Duration) {
 	tlsConn := conn.(*tls.Conn)
 	certs := tlsConn.ConnectionState().PeerCertificates
 	for _, cert := range certs {
-		fmt.Printf("Certificate for %s:\n", hostString)
-		fmt.Printf("  Issuer Name: %s\n", cert.Issuer)
-		fmt.Printf("  Expiry: %s \n", cert.NotAfter.Format("2006-January-02"))
-		fmt.Printf("  Common Name: %s \n", cert.Issuer.CommonName)
-		fmt.Print("----\n\n")
+		certificate := CertDetails{
+			CommonName: cert.Subject.CommonName,
+			Expiry:     cert.NotAfter.Format("2006-January-02"),
+			Issuer:     cert.Issuer.CommonName,
+			Pem:        base64.StdEncoding.EncodeToString(cert.Raw),
+		}
+
+		certList = append(certList, certificate)
+	}
+
+	return Endpoint{
+		Name:        ip,
+		Port:        port,
+		Certificate: certList,
 	}
 }
 
-func ScanPort(ip string, port int, timeout time.Duration) {
+func ScanPort(ip string, port int, timeout time.Duration) Endpoint {
 	target := fmt.Sprintf("%s:%d", ip, port)
 	conn, err := net.DialTimeout("tcp", target, timeout)
 
@@ -57,16 +82,21 @@ func ScanPort(ip string, port int, timeout time.Duration) {
 			time.Sleep(timeout)
 			ScanPort(ip, port, timeout)
 		}
-		return
+		return Endpoint{}
 	}
 
 	conn.Close()
-	CheckCert(ip, port, 10*time.Second)
+	endpoint := CheckCert(ip, port, 10*time.Second)
+
+	return endpoint
 }
 
-func (ps *PortScanner) Start(portList []int, timeout time.Duration) {
+func (ps *PortScanner) Start(portList []int, timeout time.Duration) []Endpoint {
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
+
+	var endpoint Endpoint
+	var endpointList []Endpoint
 
 	for _, port := range portList {
 		ps.Lock.Acquire(context.TODO(), 1)
@@ -74,7 +104,14 @@ func (ps *PortScanner) Start(portList []int, timeout time.Duration) {
 		go func(port int) {
 			defer ps.Lock.Release(1)
 			defer wg.Done()
-			ScanPort(ps.Ip, port, timeout)
+			endpoint = ScanPort(ps.Ip, port, timeout)
+			if endpoint.Name != "" {
+				endpointList = append(endpointList, endpoint)
+			}
 		}(port)
 	}
+
+	wg.Wait()
+
+	return endpointList
 }

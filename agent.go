@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os/exec"
@@ -16,6 +17,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
 )
+
+type Agent struct {
+	Name      string             `json:"agent_name"`
+	Version   string             `json:"agent_version"`
+	Endpoints []scanner.Endpoint `json:"endpoints"`
+}
 
 func Ulimit() int64 {
 	out, err := exec.Command("env", "bash", "-c", "ulimit -n").Output()
@@ -38,6 +45,8 @@ func main() {
 
 	conf, err := config.LoadConfig("config.yml")
 
+	var endpointList []scanner.Endpoint
+
 	for _, cidr := range conf.Cidrs {
 		ips := config.BuildCidrIpList(cidr)
 
@@ -57,10 +66,20 @@ func main() {
 					Ip:   ip.String(),
 					Lock: semaphore.NewWeighted(Ulimit()),
 				}
-				ps.Start(portList, 500*time.Millisecond)
+				endpoints := ps.Start(portList, 500*time.Millisecond)
+				endpointList = append(endpointList, endpoints...)
 			}(ip)
 		}
 
 		wg.Wait()
+
+		agentData := Agent{
+			Name:      conf.AgentName,
+			Version:   "0.0.1a",
+			Endpoints: endpointList,
+		}
+
+		data, _ := json.MarshalIndent(agentData, "", "  ")
+		fmt.Println(string(data))
 	}
 }
