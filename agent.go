@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os/exec"
@@ -38,6 +39,18 @@ func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 
 	conf, err := config.LoadConfig("config.yml")
+	ApiKey := conf.ApiKey
+
+	////////////// Enable test mode /////////////////
+	// TODO: Remove for production release
+	testMode := flag.Bool("test", false, "Enable test mode")
+	flag.Parse()
+
+	println("Test mode:", *testMode)
+	if *testMode {
+		ApiKey = conf.TestApiKey
+	}
+	////////////////////////////////////////////////
 
 	var endpointList []api.Endpoint
 	var wg = sync.WaitGroup{}
@@ -74,5 +87,5 @@ func main() {
 		Endpoints: endpointList,
 	}
 
-	api.Send(agentData, conf.ApiKey)
+	api.Send(agentData, ApiKey, *testMode)
 }

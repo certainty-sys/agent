@@ -24,23 +24,15 @@ type Host struct {
 }
 
 type Configuration struct {
-	AgentName string          `yaml:"agent_name"`
-	ApiKey    string          `yaml:"api_key"`
-	ProxyHost string          `yaml:"proxy_host,omitempty"`
-	ProxyPort int             `yaml:"proxy_port,omitempty"`
-	SkipPorts []int           `yaml:"skip_ports,omitempty"`
-	Cidrs     map[string]Cidr `yaml:"cidrs,omitempty"`
-	Hosts     map[string]Host `yaml:"hosts,omitempty"`
+	AgentName  string          `yaml:"agent_name"`
+	ApiKey     string          `yaml:"api_key"`
+	TestApiKey string          `yaml:"test_api_key"`
+	ProxyHost  string          `yaml:"proxy_host,omitempty"`
+	ProxyPort  int             `yaml:"proxy_port,omitempty"`
+	SkipPorts  []int           `yaml:"skip_ports,omitempty"`
+	Cidrs      map[string]Cidr `yaml:"cidrs,omitempty"`
+	Hosts      map[string]Host `yaml:"hosts,omitempty"`
 }
-
-// func SaveConfig(c any, filename string) error {
-// 	bytes, err := yaml.Marshal(c)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	return os.WriteFile(filename, bytes, 0644)
-// }
 
 func LoadConfig(filename string) (Configuration, error) {
 	bytes, err := os.ReadFile(filename)
