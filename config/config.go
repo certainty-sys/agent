@@ -27,6 +27,7 @@ type Configuration struct {
 	AgentName  string          `yaml:"agent_name"`
 	ApiKey     string          `yaml:"api_key"`
 	TestApiKey string          `yaml:"test_api_key"`
+	TestApiUrl string          `yaml:"test_api_url"`
 	ProxyHost  string          `yaml:"proxy_host,omitempty"`
 	ProxyPort  int             `yaml:"proxy_port,omitempty"`
 	SkipPorts  []int           `yaml:"skip_ports,omitempty"`

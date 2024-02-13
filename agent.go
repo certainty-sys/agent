@@ -40,6 +40,7 @@ func main() {
 
 	conf, err := config.LoadConfig("config.yml")
 	ApiKey := conf.ApiKey
+	testUrl := ""
 
 	////////////// Enable test mode /////////////////
 	// TODO: Remove for production release
@@ -49,6 +50,7 @@ func main() {
 	println("Test mode:", *testMode)
 	if *testMode {
 		ApiKey = conf.TestApiKey
+		testUrl = conf.TestApiUrl
 	}
 	////////////////////////////////////////////////
 
@@ -87,5 +89,5 @@ func main() {
 		Endpoints: endpointList,
 	}
 
-	api.Send(agentData, ApiKey, *testMode)
+	api.Send(api.SendParams{AgentData: agentData, ApiKey: ApiKey, TestMode: testMode, TestApiUrl: testUrl})
 }

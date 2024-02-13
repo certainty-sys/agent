@@ -27,14 +27,26 @@ type Agent struct {
 	Endpoints []Endpoint `json:"endpoints"`
 }
 
-func Send(agentData Agent, apiKey string, testMode bool) {
-	url := "https://portal.certainty-sys.com/api/v1/agents/discovery"
+type SendParams struct {
+	AgentData Agent
+	ApiKey string
+	TestMode *bool
+	TestApiUrl string
+}
 
-	if testMode {
-		url = "http://127.0.0.1:5000/api/v1/agents/discovery"
+func Send(params SendParams) {
+	if ! *params.TestMode {
+		*params.TestMode = false
 	}
 
-	data, _ := json.MarshalIndent(agentData, "", "  ")
+
+	url := "https://portal.certainty-sys.com/api/v1/agents/discovery"
+
+	if *params.TestMode {
+		url = params.TestApiUrl
+	}
+
+	data, _ := json.MarshalIndent(params.AgentData, "", "  ")
 	payload := bytes.NewReader(data)
 
 	req, err := http.NewRequest("POST", url, payload)
@@ -42,7 +54,7 @@ func Send(agentData Agent, apiKey string, testMode bool) {
 		fmt.Println(err.Error())
 		return
 	}
-	req.Header.Add("x-api-key", apiKey)
+	req.Header.Add("x-api-key", params.ApiKey)
 	req.Header.Add("content-type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
