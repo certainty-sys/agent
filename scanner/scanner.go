@@ -43,6 +43,22 @@ func CheckCert(ip string, port int, timeout time.Duration) api.Endpoint {
 	tlsConn := conn.(*tls.Conn)
 	certs := tlsConn.ConnectionState().PeerCertificates
 
+	if port == 443 {
+		requestText := fmt.Sprintf("GET / HTTP/1.1\nhost: %s\nuser-agent: certainty-bot (+http://www.certainty-sys.com/bot)\n\n", ip)
+
+		length, err := tlsConn.Write([]byte(requestText))
+		if err != nil {
+			logrus.Warnf("There was a problem sending a HTTP request to %s: %s", ip, err)
+		}
+
+		buf := make([]byte, length)
+
+		_, err = tlsConn.Read(buf)
+		if err != nil {
+			logrus.Warnf("There was a problem reading a HTTP response from %s: %s", ip, err)
+		}
+	}
+
 	cert := certs[0]
 
 	pem := pem.EncodeToMemory(&pem.Block{
