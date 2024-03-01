@@ -48,14 +48,15 @@ func CheckCert(ip string, port int, timeout time.Duration) api.Endpoint {
 
 		length, err := tlsConn.Write([]byte(requestText))
 		if err != nil {
-			logrus.Warnf("There was a problem sending a HTTP request to %s: %s", ip, err)
+			logrus.Warnf("There was a problem sending a HTTP request to %s: %s\n", ip, err)
 		}
 
 		buf := make([]byte, length)
 
+		tlsConn.SetReadDeadline(time.Now().Add(time.Second))
 		_, err = tlsConn.Read(buf)
 		if err != nil {
-			logrus.Warnf("There was a problem reading a HTTP response from %s: %s", ip, err)
+			logrus.Warnf("There was a problem reading a HTTP response from %s: %s\n", ip, err)
 		}
 	}
 

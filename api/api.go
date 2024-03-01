@@ -28,17 +28,16 @@ type Agent struct {
 }
 
 type SendParams struct {
-	AgentData Agent
-	ApiKey string
-	TestMode *bool
+	AgentData  Agent
+	ApiKey     string
+	TestMode   *bool
 	TestApiUrl string
 }
 
 func Send(params SendParams) {
-	if ! *params.TestMode {
+	if !*params.TestMode {
 		*params.TestMode = false
 	}
-
 
 	url := "https://portal.certainty-sys.com/api/v1/agents/discovery"
 
@@ -51,20 +50,20 @@ func Send(params SendParams) {
 
 	req, err := http.NewRequest("POST", url, payload)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("Error:", err.Error())
 		return
 	}
 	req.Header.Add("x-api-key", params.ApiKey)
 	req.Header.Add("content-type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("Error:", err.Error())
 		return
 	}
 	defer res.Body.Close()
 	body, readErr := io.ReadAll(res.Body)
 	if readErr != nil {
-		fmt.Println(err.Error())
+		fmt.Println("Error:", err.Error())
 		return
 	}
 	fmt.Println(string(body))
