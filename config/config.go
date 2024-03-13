@@ -41,13 +41,13 @@ func LoadConfig(filename string) (Configuration, error) {
 		return Configuration{}, err
 	}
 
-	var c Configuration
-	err = yaml.Unmarshal(bytes, &c)
+	var config Configuration
+	err = yaml.Unmarshal(bytes, &config)
 	if err != nil {
 		return Configuration{}, err
 	}
 
-	return c, nil
+	return config, nil
 }
 
 func BuildCidrPortList(cidr Cidr, globalSkipPorts []int) []int {

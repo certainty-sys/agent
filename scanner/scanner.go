@@ -83,6 +83,7 @@ func CheckCert(ip string, port int, timeout time.Duration) api.Endpoint {
 
 func ScanPort(ip string, port int, timeout time.Duration) api.Endpoint {
 	target := fmt.Sprintf("%s:%d", ip, port)
+
 	conn, err := net.DialTimeout("tcp", target, timeout)
 
 	if err != nil {
