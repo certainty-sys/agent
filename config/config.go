@@ -12,10 +12,11 @@ import (
 )
 
 type Cidr struct {
-	Cidr       string  `yaml:"cidr"`
-	SkipPorts  []int   `yaml:"skip_ports,omitempty"`
-	Ports      []int   `yaml:"ports,omitempty"`
-	PortRanges [][]int `yaml:"port_ranges,omitempty"`
+	Cidr       string   `yaml:"cidr"`
+	PortRanges [][]int  `yaml:"port_ranges,omitempty"`
+	Ports      []int    `yaml:"ports,omitempty"`
+	SkipPorts  []int    `yaml:"skip_ports,omitempty"`
+	SniNames   []string `yaml:"sni_names,omitempty"`
 }
 
 type Host struct {
@@ -26,13 +27,13 @@ type Host struct {
 type Configuration struct {
 	AgentName  string          `yaml:"agent_name"`
 	ApiKey     string          `yaml:"api_key"`
-	TestApiKey string          `yaml:"test_api_key"`
-	TestApiUrl string          `yaml:"test_api_url"`
+	Cidrs      map[string]Cidr `yaml:"cidrs,omitempty"`
+	Hosts      map[string]Host `yaml:"hosts,omitempty"`
 	ProxyHost  string          `yaml:"proxy_host,omitempty"`
 	ProxyPort  int             `yaml:"proxy_port,omitempty"`
 	SkipPorts  []int           `yaml:"skip_ports,omitempty"`
-	Cidrs      map[string]Cidr `yaml:"cidrs,omitempty"`
-	Hosts      map[string]Host `yaml:"hosts,omitempty"`
+	TestApiKey string          `yaml:"test_api_key,omitempty"`
+	TestApiUrl string          `yaml:"test_api_url,omitempty"`
 }
 
 func LoadConfig(filename string) (Configuration, error) {
@@ -94,6 +95,11 @@ func BuildCidrIpList(cidr Cidr) []net.IP {
 	// network is BigEndian
 	mask := binary.BigEndian.Uint32(ipv4Net.Mask)
 	start := binary.BigEndian.Uint32(ipv4Net.IP)
+
+	// Single IP (/32)
+	if mask == 4294967295 {
+		return []net.IP{ipv4Net.IP}
+	}
 
 	// Skip network address
 	start++

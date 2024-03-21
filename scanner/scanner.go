@@ -17,12 +17,17 @@ import (
 )
 
 type PortScanner struct {
-	Ip   string
-	Lock *semaphore.Weighted
+	Ip       string
+	SniNames []string
+	Lock     *semaphore.Weighted
 }
 
-func CheckCert(ip string, port int, timeout time.Duration) api.Endpoint {
+func CheckCert(ip string, port int, sni_name string, timeout time.Duration) api.Endpoint {
 	conf := &tls.Config{InsecureSkipVerify: true}
+
+	if sni_name != "" {
+		conf.ServerName = sni_name
+	}
 
 	hostString := fmt.Sprintf("%s:%d", ip, port)
 
@@ -81,7 +86,7 @@ func CheckCert(ip string, port int, timeout time.Duration) api.Endpoint {
 	}
 }
 
-func ScanPort(ip string, port int, timeout time.Duration) api.Endpoint {
+func ScanPort(ip string, port int, sni_names []string, timeout time.Duration) []api.Endpoint {
 	target := fmt.Sprintf("%s:%d", ip, port)
 
 	conn, err := net.DialTimeout("tcp", target, timeout)
@@ -89,18 +94,23 @@ func ScanPort(ip string, port int, timeout time.Duration) api.Endpoint {
 	if err != nil {
 		if strings.Contains(err.Error(), "too many open files") {
 			time.Sleep(timeout)
-			ScanPort(ip, port, timeout)
+			ScanPort(ip, port, sni_names, timeout)
 		}
-		return api.Endpoint{}
+		return []api.Endpoint{}
 	}
 
 	conn.Close()
-	endpoint := CheckCert(ip, port, 10*time.Second)
 
-	return endpoint
+	var endpointList []api.Endpoint
+
+	for _, sni_name := range sni_names {
+		endpointList = append(endpointList, CheckCert(ip, port, sni_name, 10*time.Second))
+	}
+
+	return endpointList
 }
 
-func (ps *PortScanner) Start(portList []int, timeout time.Duration) []api.Endpoint {
+func (ps *PortScanner) Start(portList []int, sni_names []string, timeout time.Duration) []api.Endpoint {
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
 
@@ -112,9 +122,10 @@ func (ps *PortScanner) Start(portList []int, timeout time.Duration) []api.Endpoi
 		go func(port int) {
 			defer ps.Lock.Release(1)
 			defer wg.Done()
-			endpoint := ScanPort(ps.Ip, port, timeout)
-			if endpoint.Name != "" {
-				endpointList = append(endpointList, endpoint)
+			for _, endpoint := range ScanPort(ps.Ip, port, sni_names, timeout) {
+				if endpoint.Name != "" {
+					endpointList = append(endpointList, endpoint)
+				}
 			}
 		}(port)
 	}

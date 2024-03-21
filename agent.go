@@ -62,6 +62,11 @@ func main() {
 
 		portList := config.BuildCidrPortList(cidr, conf.SkipPorts)
 
+		sni_names := cidr.SniNames
+		if len(sni_names) == 0 {
+			sni_names = []string{""}
+		}
+
 		if err != nil {
 			fmt.Printf("Failed to get local IPs: %s\n", err)
 			return
@@ -75,8 +80,7 @@ func main() {
 					Ip:   ip.String(),
 					Lock: semaphore.NewWeighted(Ulimit()),
 				}
-				endpoints := ps.Start(portList, 500*time.Millisecond)
-				endpointList = append(endpointList, endpoints...)
+				endpointList = append(endpointList, ps.Start(portList, sni_names, 500*time.Millisecond)...)
 			}(ip)
 		}
 	}
