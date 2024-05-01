@@ -12,16 +12,15 @@ import (
 )
 
 type Cidr struct {
-	Cidr       string   `yaml:"cidr"`
-	PortRanges [][]int  `yaml:"port_ranges,omitempty"`
-	Ports      []int    `yaml:"ports,omitempty"`
-	SkipPorts  []int    `yaml:"skip_ports,omitempty"`
-	SniNames   []string `yaml:"sni_names,omitempty"`
+	Cidr       string  `yaml:"cidr"`
+	PortRanges [][]int `yaml:"port_ranges,omitempty"`
+	Ports      []int   `yaml:"ports,omitempty"`
+	SkipPorts  []int   `yaml:"skip_ports,omitempty"`
 }
 
 type Host struct {
 	HostName string `yaml:"hostname"`
-	Port     int    `yaml:"port"`
+	Port     int    `yaml:"port,omitempty"`
 }
 
 type Configuration struct {
@@ -34,6 +33,19 @@ type Configuration struct {
 	SkipPorts  []int           `yaml:"skip_ports,omitempty"`
 	TestApiKey string          `yaml:"test_api_key,omitempty"`
 	TestApiUrl string          `yaml:"test_api_url,omitempty"`
+}
+
+func (h *Host) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	if h.Port == 0 {
+		h.Port = 443
+	}
+
+	type plain Host
+	if err := unmarshal((*plain)(h)); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func LoadConfig(filename string) (Configuration, error) {

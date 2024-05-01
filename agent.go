@@ -39,6 +39,11 @@ func main() {
 	logrus.SetLevel(logrus.DebugLevel)
 
 	conf, err := config.LoadConfig("config.yml")
+	if err != nil {
+		fmt.Printf("Failed to parse config file: %s", err)
+		return
+	}
+
 	ApiKey := conf.ApiKey
 	testUrl := ""
 
@@ -62,27 +67,37 @@ func main() {
 
 		portList := config.BuildCidrPortList(cidr, conf.SkipPorts)
 
-		sni_names := cidr.SniNames
-		if len(sni_names) == 0 {
-			sni_names = []string{""}
-		}
-
-		if err != nil {
-			fmt.Printf("Failed to get local IPs: %s\n", err)
-			return
-		}
-
 		for _, ip := range ips {
 			wg.Add(1)
 			go func(ip net.IP) {
 				defer wg.Done()
 				ps := &scanner.PortScanner{
-					Ip:   ip.String(),
-					Lock: semaphore.NewWeighted(Ulimit()),
+					Ip:       ip.String(),
+					Hostname: ip.String(),
+					Lock:     semaphore.NewWeighted(Ulimit()),
 				}
-				endpointList = append(endpointList, ps.Start(portList, sni_names, 500*time.Millisecond)...)
+				endpointList = append(endpointList, ps.Start(portList, 500*time.Millisecond)...)
 			}(ip)
 		}
+	}
+
+	for _, host := range conf.Hosts {
+		ip, err := net.LookupIP(host.HostName)
+		if err != nil {
+			fmt.Printf("Failed to lookup hostname %s: %s\n", host.HostName, err)
+			continue
+		}
+
+		wg.Add(1)
+		go func(ip net.IP, port int, hostname string) {
+			defer wg.Done()
+			ps := &scanner.PortScanner{
+				Ip:       ip.String(),
+				Hostname: hostname,
+				Lock:     semaphore.NewWeighted(Ulimit()),
+			}
+			endpointList = append(endpointList, ps.Start([]int{port}, 500*time.Millisecond)...)
+		}(ip[0], host.Port, host.HostName)
 	}
 
 	wg.Wait()
