@@ -80,7 +80,7 @@ func CheckCert(ip string, port int, hostname string, timeout time.Duration) api.
 	}
 
 	return api.Endpoint{
-		Name:        ip,
+		Name:        conf.ServerName,
 		Port:        port,
 		Certificate: certificate,
 	}
