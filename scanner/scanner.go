@@ -58,7 +58,7 @@ func CheckCert(ip string, port int, hostname string, timeout time.Duration) api.
 
 		buf := make([]byte, length)
 
-		tlsConn.SetReadDeadline(time.Now().Add(time.Second))
+		_ = tlsConn.SetReadDeadline(time.Now().Add(time.Second))
 		_, err = tlsConn.Read(buf)
 		if err != nil {
 			logrus.Warnf("There was a problem reading a HTTP response from %s: %s\n", ip, err)
@@ -111,7 +111,11 @@ func (ps *PortScanner) Start(portList []int, timeout time.Duration) []api.Endpoi
 	var endpointList []api.Endpoint
 
 	for _, port := range portList {
-		ps.Lock.Acquire(context.TODO(), 1)
+		err := ps.Lock.Acquire(context.TODO(), 1)
+		if err != nil {
+			logrus.Error("Unable to obtain lock")
+			return endpointList
+		}
 		wg.Add(1)
 		go func(port int) {
 			defer ps.Lock.Release(1)

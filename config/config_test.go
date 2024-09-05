@@ -34,7 +34,10 @@ hosts:
 
 	var conf Configuration
 
-	yaml.Unmarshal([]byte(yamlString), &conf)
+	err := yaml.Unmarshal([]byte(yamlString), &conf)
+	if err != nil {
+		t.Error("Bad YAML")
+	}
 
 	gotPorts := BuildCidrPortList(conf.Cidrs["test1"], conf.SkipPorts)
 	wantPorts := []int{443}
