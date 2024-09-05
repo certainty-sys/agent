@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: linux
+            goarch: arm64
+        go-version: [1.22]
+    steps:
+      - name: Set up Go v${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.goos }} binary
+        run: |
+          env GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o certainty-agent-${{ matrix.goos }}-${{ matrix.goarch }}-${{ github.ref_name }}
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@master
+        with:
+          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}-${{ github.ref_name }}
+          path: ./certainty-agent-*
+          if-no-files-found: error
+
+  create-release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@master
+        with:
+          path: binaries
+
+      - name: Create release with binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir releases
+          find binaries -type f | xargs cp -t releases
+          cd releases
+          gh release create ${{ github.ref_name }} --generate-notes ./certainty-agent-*
