@@ -28,7 +28,7 @@ jobs:
 
       - name: Build ${{ matrix.goos }} binary
         run: |
-          env GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o certainty-agent-${{ matrix.goos }}-${{ matrix.goarch }}-${{ github.ref_name }}
+          env GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -tags netgo,osusergo -o certainty-agent-${{ matrix.goos }}-${{ matrix.goarch }}-${{ github.ref_name }}
 
       - name: Upload binaries
         uses: actions/upload-artifact@master
