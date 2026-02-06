@@ -2,10 +2,13 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
+	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type CertDetails struct {
@@ -35,36 +38,40 @@ type SendParams struct {
 }
 
 func Send(params SendParams) {
-	if !*params.TestMode {
-		*params.TestMode = false
-	}
-
 	url := "https://portal.certainty-sys.com/api/v1/agents/discovery"
 
 	if *params.TestMode {
 		url = params.TestApiUrl
 	}
 
-	data, _ := json.MarshalIndent(params.AgentData, "", "  ")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	data, err := json.MarshalIndent(params.AgentData, "", "  ")
+	if err != nil {
+		logrus.Errorf("Unable to marshal JSON from: %s", data)
+		return
+	}
 	payload := bytes.NewReader(data)
 
 	req, err := http.NewRequest("POST", url, payload)
 	if err != nil {
-		fmt.Println("Error:", err.Error())
+		logrus.Error(err)
 		return
 	}
+	req = req.WithContext(ctx)
 	req.Header.Add("x-api-key", params.ApiKey)
 	req.Header.Add("content-type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		fmt.Println("Error:", err.Error())
+		logrus.Error(err)
 		return
 	}
 	defer res.Body.Close()
-	body, readErr := io.ReadAll(res.Body)
-	if readErr != nil {
-		fmt.Println("Error:", err.Error())
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		logrus.Error(err)
 		return
 	}
-	fmt.Println(string(body))
+	logrus.Info(string(body))
 }

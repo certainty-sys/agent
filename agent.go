@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"net"
 	"os/exec"
 	"strconv"
@@ -12,24 +11,27 @@ import (
 
 	"agent/api"
 	"agent/config"
-	_ "agent/logging"
 	"agent/scanner"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
 )
 
+const ulimitDefault = 1024
+
 func Ulimit() int64 {
 	out, err := exec.Command("env", "bash", "-c", "ulimit -n").Output()
 	if err != nil {
-		panic(err)
+		logrus.Error(err)
+		return ulimitDefault
 	}
 
 	s := strings.TrimSpace(string(out))
 
 	i, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		panic(err)
+		logrus.Error(err)
+		return ulimitDefault
 	}
 
 	return i
@@ -40,27 +42,33 @@ func main() {
 
 	conf, err := config.LoadConfig("config.yml")
 	if err != nil {
-		fmt.Printf("Failed to parse config file: %s", err)
+		logrus.Errorf("Failed to parse config file: %s", err)
 		return
 	}
 
-	ApiKey := conf.ApiKey
+	apiKey := conf.ApiKey
 	testUrl := ""
 
-	////////////// Enable test mode /////////////////
-	// TODO: Remove for production release
 	testMode := flag.Bool("test", false, "Enable test mode")
 	flag.Parse()
 
-	println("Test mode:", *testMode)
+	logrus.Info("Test mode:", *testMode)
 	if *testMode {
-		ApiKey = conf.TestApiKey
+		apiKey = conf.TestApiKey
 		testUrl = conf.TestApiUrl
 	}
-	////////////////////////////////////////////////
+
+	wg := sync.WaitGroup{}
+
+	sharedLock := semaphore.NewWeighted(Ulimit())
+	ec := make(chan api.Endpoint)
 
 	var endpointList []api.Endpoint
-	var wg = sync.WaitGroup{}
+	go func() {
+		for ep := range ec {
+			endpointList = append(endpointList, ep)
+		}
+	}()
 
 	for _, cidr := range conf.Cidrs {
 		ips := config.BuildCidrIpList(cidr)
@@ -74,33 +82,40 @@ func main() {
 				ps := &scanner.PortScanner{
 					Ip:       ip.String(),
 					Hostname: ip.String(),
-					Lock:     semaphore.NewWeighted(Ulimit()),
+					Lock:     sharedLock,
 				}
-				endpointList = append(endpointList, ps.Start(portList, 500*time.Millisecond)...)
+				for _, ep := range ps.Start(portList, 500*time.Millisecond) {
+					ec <- ep
+				}
 			}(ip)
 		}
 	}
 
 	for _, host := range conf.Hosts {
-		ip, err := net.LookupIP(host.HostName)
+		ips, err := net.LookupIP(host.HostName)
 		if err != nil {
-			fmt.Printf("Failed to lookup hostname %s: %s\n", host.HostName, err)
+			logrus.Warningf("Failed to lookup hostname %s: %s\n", host.HostName, err)
 			continue
 		}
 
-		wg.Add(1)
-		go func(ip net.IP, port int, hostname string) {
-			defer wg.Done()
-			ps := &scanner.PortScanner{
-				Ip:       ip.String(),
-				Hostname: hostname,
-				Lock:     semaphore.NewWeighted(Ulimit()),
-			}
-			endpointList = append(endpointList, ps.Start([]int{port}, 500*time.Millisecond)...)
-		}(ip[0], host.Port, host.HostName)
+		for _, ip := range ips {
+			wg.Add(1)
+			go func(ip net.IP, port int, hostname string) {
+				defer wg.Done()
+				ps := &scanner.PortScanner{
+					Ip:       ip.String(),
+					Hostname: hostname,
+					Lock:     sharedLock,
+				}
+				for _, ep := range ps.Start([]int{port}, 500*time.Millisecond) {
+					ec <- ep
+				}
+			}(ip, host.Port, host.HostName)
+		}
 	}
 
 	wg.Wait()
+	close(ec)
 
 	agentData := api.Agent{
 		Name:      conf.AgentName,
@@ -108,5 +123,5 @@ func main() {
 		Endpoints: endpointList,
 	}
 
-	api.Send(api.SendParams{AgentData: agentData, ApiKey: ApiKey, TestMode: testMode, TestApiUrl: testUrl})
+	api.Send(api.SendParams{AgentData: agentData, ApiKey: apiKey, TestMode: testMode, TestApiUrl: testUrl})
 }

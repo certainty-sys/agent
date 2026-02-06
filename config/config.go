@@ -2,13 +2,14 @@ package config
 
 import (
 	"encoding/binary"
-	"log"
 	"net"
 	"os"
 	"slices"
 
 	"github.com/thoas/go-funk"
 	"gopkg.in/yaml.v3"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Cidr struct {
@@ -76,6 +77,9 @@ func BuildCidrPortList(cidr Cidr, globalSkipPorts []int) []int {
 	portList = append(portList, ports...)
 
 	for _, portRange := range cidr.PortRanges {
+		if len(portRange) < 2 || portRange[0] > portRange[1] {
+			continue
+		}
 		s := make([]int, portRange[1]-portRange[0]+1)
 		for i := range s {
 			s[i] = i + portRange[0]
@@ -91,7 +95,7 @@ func BuildCidrPortList(cidr Cidr, globalSkipPorts []int) []int {
 
 	// De-duplicate the list
 	slices.Sort(cleanPortList)
-	return slices.Compact[[]int](cleanPortList)
+	return slices.Compact(cleanPortList)
 }
 
 func BuildCidrIpList(cidr Cidr) []net.IP {
@@ -100,7 +104,8 @@ func BuildCidrIpList(cidr Cidr) []net.IP {
 	// convert string to IPNet struct
 	_, ipv4Net, err := net.ParseCIDR(cidr.Cidr)
 	if err != nil {
-		log.Fatal(err)
+		logrus.Error(err)
+		return []net.IP{}
 	}
 
 	// convert IPNet struct mask and address to uint32
