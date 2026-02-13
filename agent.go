@@ -58,17 +58,20 @@ func main() {
 		testUrl = conf.TestApiUrl
 	}
 
-	wg := sync.WaitGroup{}
-
 	sharedLock := semaphore.NewWeighted(Ulimit())
-	ec := make(chan api.Endpoint)
+	ec := make(chan api.Endpoint, 100)
 
+	consumerWg := sync.WaitGroup{}
+	consumerWg.Add(1)
 	var endpointList []api.Endpoint
 	go func() {
+		defer consumerWg.Done()
 		for ep := range ec {
 			endpointList = append(endpointList, ep)
 		}
 	}()
+
+	wg := sync.WaitGroup{}
 
 	for _, cidr := range conf.Cidrs {
 		ips := config.BuildCidrIpList(cidr)
@@ -116,6 +119,7 @@ func main() {
 
 	wg.Wait()
 	close(ec)
+	consumerWg.Wait()
 
 	agentData := api.Agent{
 		Name:      conf.AgentName,

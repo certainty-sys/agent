@@ -116,10 +116,13 @@ func ScanPort(ip string, port int, hostname string, timeout time.Duration) api.E
 
 func (ps *PortScanner) Start(portList []int, timeout time.Duration) []api.Endpoint {
 	wg := sync.WaitGroup{}
-	ec := make(chan api.Endpoint)
+	ec := make(chan api.Endpoint, 100)
 
+	consumerWg := sync.WaitGroup{}
+	consumerWg.Add(1)
 	var endpointList []api.Endpoint
 	go func() {
+		defer consumerWg.Done()
 		for ep := range ec {
 			endpointList = append(endpointList, ep)
 		}
@@ -144,6 +147,7 @@ func (ps *PortScanner) Start(portList []int, timeout time.Duration) []api.Endpoi
 
 	wg.Wait()
 	close(ec)
+	consumerWg.Wait()
 
 	return endpointList
 }

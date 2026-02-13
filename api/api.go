@@ -60,7 +60,7 @@ func Send(params SendParams) {
 		return
 	}
 	req = req.WithContext(ctx)
-	req.Header.Add("x-api-key", params.ApiKey)
+	req.Header.Add("certainty-api-key", params.ApiKey)
 	req.Header.Add("content-type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
