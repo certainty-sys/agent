@@ -30,26 +30,26 @@ type Agent struct {
 	Endpoints []Endpoint `json:"endpoints"`
 }
 
-type SendParams struct {
+type API struct {
 	AgentData  Agent
-	ApiKey     string
+	Key        string
 	TestMode   *bool
 	TestApiUrl string
 }
 
-func Send(params SendParams) {
+func (api API) Send() {
 	url := "https://portal.certainty-sys.com/api/v1/agents/discovery"
 
-	if *params.TestMode {
-		url = params.TestApiUrl
+	if *api.TestMode {
+		url = api.TestApiUrl
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	data, err := json.MarshalIndent(params.AgentData, "", "  ")
+	data, err := json.MarshalIndent(api.AgentData, "", "  ")
 	if err != nil {
-		logrus.Errorf("Unable to marshal JSON from: %s", data)
+		logrus.Errorf("Unable to marshal JSON: %s", err)
 		return
 	}
 	payload := bytes.NewReader(data)
@@ -60,7 +60,7 @@ func Send(params SendParams) {
 		return
 	}
 	req = req.WithContext(ctx)
-	req.Header.Add("certainty-api-key", params.ApiKey)
+	req.Header.Add("certainty-api-key", api.Key)
 	req.Header.Add("content-type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

@@ -3,10 +3,8 @@ package main
 import (
 	"flag"
 	"net"
-	"os/exec"
-	"strconv"
-	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"agent/api"
@@ -17,24 +15,13 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-const ulimitDefault = 1024
-
 func Ulimit() int64 {
-	out, err := exec.Command("env", "bash", "-c", "ulimit -n").Output()
+	var rLimit syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
 	if err != nil {
-		logrus.Error(err)
-		return ulimitDefault
+		return 1024
 	}
-
-	s := strings.TrimSpace(string(out))
-
-	i, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		logrus.Error(err)
-		return ulimitDefault
-	}
-
-	return i
+	return int64(rLimit.Cur)
 }
 
 func main() {
@@ -59,7 +46,7 @@ func main() {
 	}
 
 	sharedLock := semaphore.NewWeighted(Ulimit())
-	ec := make(chan api.Endpoint, 100)
+	ec := make(chan api.Endpoint)
 
 	consumerWg := sync.WaitGroup{}
 	consumerWg.Add(1)
@@ -82,12 +69,12 @@ func main() {
 			wg.Add(1)
 			go func(ip net.IP) {
 				defer wg.Done()
-				ps := &scanner.PortScanner{
+				sh := &scanner.Host{
 					Ip:       ip.String(),
 					Hostname: ip.String(),
 					Lock:     sharedLock,
 				}
-				for _, ep := range ps.Start(portList, 500*time.Millisecond) {
+				for _, ep := range sh.ScanPorts(portList, 500*time.Millisecond) {
 					ec <- ep
 				}
 			}(ip)
@@ -97,7 +84,7 @@ func main() {
 	for _, host := range conf.Hosts {
 		ips, err := net.LookupIP(host.HostName)
 		if err != nil {
-			logrus.Warningf("Failed to lookup hostname %s: %s\n", host.HostName, err)
+			logrus.Warnf("Failed to lookup hostname %s: %s\n", host.HostName, err)
 			continue
 		}
 
@@ -105,12 +92,12 @@ func main() {
 			wg.Add(1)
 			go func(ip net.IP, port int, hostname string) {
 				defer wg.Done()
-				ps := &scanner.PortScanner{
+				sh := &scanner.Host{
 					Ip:       ip.String(),
 					Hostname: hostname,
 					Lock:     sharedLock,
 				}
-				for _, ep := range ps.Start([]int{port}, 500*time.Millisecond) {
+				for _, ep := range sh.ScanPorts([]int{port}, 500*time.Millisecond) {
 					ec <- ep
 				}
 			}(ip, host.Port, host.HostName)
@@ -127,5 +114,5 @@ func main() {
 		Endpoints: endpointList,
 	}
 
-	api.Send(api.SendParams{AgentData: agentData, ApiKey: apiKey, TestMode: testMode, TestApiUrl: testUrl})
+	api.API{AgentData: agentData, Key: apiKey, TestMode: testMode, TestApiUrl: testUrl}.Send()
 }

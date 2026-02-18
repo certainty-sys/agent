@@ -6,7 +6,6 @@ import (
 	"os"
 	"slices"
 
-	"github.com/thoas/go-funk"
 	"gopkg.in/yaml.v3"
 
 	"github.com/sirupsen/logrus"
@@ -17,11 +16,6 @@ type Cidr struct {
 	PortRanges [][]int `yaml:"port_ranges,omitempty"`
 	Ports      []int   `yaml:"ports,omitempty"`
 	SkipPorts  []int   `yaml:"skip_ports,omitempty"`
-}
-
-type Host struct {
-	HostName string `yaml:"hostname"`
-	Port     int    `yaml:"port,omitempty"`
 }
 
 type Configuration struct {
@@ -36,14 +30,19 @@ type Configuration struct {
 	TestApiUrl string          `yaml:"test_api_url,omitempty"`
 }
 
-func (h *Host) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	if h.Port == 0 {
-		h.Port = 443
-	}
+type Host struct {
+	HostName string `yaml:"hostname"`
+	Port     int    `yaml:"port,omitempty"`
+}
 
+func (h *Host) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain Host
 	if err := unmarshal((*plain)(h)); err != nil {
 		return err
+	}
+
+	if h.Port == 0 {
+		h.Port = 443
 	}
 
 	return nil
@@ -62,6 +61,20 @@ func LoadConfig(filename string) (Configuration, error) {
 	}
 
 	return config, nil
+}
+
+func subtract(a, b []int) []int {
+	skip := make(map[int]bool, len(b))
+	for _, p := range b {
+		skip[p] = true
+	}
+	result := a[:0:0]
+	for _, p := range a {
+		if !skip[p] {
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 func BuildCidrPortList(cidr Cidr, globalSkipPorts []int) []int {
@@ -88,10 +101,10 @@ func BuildCidrPortList(cidr Cidr, globalSkipPorts []int) []int {
 	}
 
 	// Remove the CIDR's skipped ports
-	cleanCidrPortList := funk.Subtract(portList, cidr.SkipPorts)
+	cleanCidrPortList := subtract(portList, cidr.SkipPorts)
 
 	// Remove the globally skipped ports
-	cleanPortList := funk.Subtract(cleanCidrPortList, globalSkipPorts).([]int)
+	cleanPortList := subtract(cleanCidrPortList, globalSkipPorts)
 
 	// De-duplicate the list
 	slices.Sort(cleanPortList)
