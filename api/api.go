@@ -37,6 +37,7 @@ type API struct {
 	TestApiUrl string
 }
 
+// Send sends the collected data to the Certainty Portal API
 func (api API) Send() {
 	url := "https://portal.certainty-sys.com/api/v1/agents/discovery"
 

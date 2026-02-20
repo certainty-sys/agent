@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sync/semaphore"
 )
 
-func Ulimit() int64 {
+func ulimit() int64 {
 	var rLimit syscall.Rlimit
 	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
 	if err != nil {
@@ -45,30 +45,31 @@ func main() {
 		testUrl = conf.TestApiUrl
 	}
 
-	sharedLock := semaphore.NewWeighted(Ulimit())
-	ec := make(chan api.Endpoint)
+	sharedLock := semaphore.NewWeighted(ulimit())
 
-	consumerWg := sync.WaitGroup{}
-	consumerWg.Add(1)
+	// Goroutine to collect the found endpoints and add them to a single list of endpoints
+	ec := make(chan api.Endpoint)
+	consumerWG := sync.WaitGroup{}
+	consumerWG.Add(1)
 	var endpointList []api.Endpoint
 	go func() {
-		defer consumerWg.Done()
+		defer consumerWG.Done()
 		for ep := range ec {
 			endpointList = append(endpointList, ep)
 		}
 	}()
 
-	wg := sync.WaitGroup{}
-
+	generatorWG := sync.WaitGroup{}
 	for _, cidr := range conf.Cidrs {
 		ips := config.BuildCidrIpList(cidr)
 
 		portList := config.BuildCidrPortList(cidr, conf.SkipPorts)
 
+		// goroutine to discover all endpoints on a single IP
 		for _, ip := range ips {
-			wg.Add(1)
+			generatorWG.Add(1)
 			go func(ip net.IP) {
-				defer wg.Done()
+				defer generatorWG.Done()
 				sh := &scanner.Host{
 					Ip:       ip.String(),
 					Hostname: ip.String(),
@@ -88,10 +89,11 @@ func main() {
 			continue
 		}
 
+		// goroutine to discover all endpoints on a single hostname
 		for _, ip := range ips {
-			wg.Add(1)
+			generatorWG.Add(1)
 			go func(ip net.IP, port int, hostname string) {
-				defer wg.Done()
+				defer generatorWG.Done()
 				sh := &scanner.Host{
 					Ip:       ip.String(),
 					Hostname: hostname,
@@ -104,9 +106,12 @@ func main() {
 		}
 	}
 
-	wg.Wait()
+	// wait for the goroutines to finish and close the endpoint collection channel
+	generatorWG.Wait()
 	close(ec)
-	consumerWg.Wait()
+
+	// wait for the endpoint collector to finish
+	consumerWG.Wait()
 
 	agentData := api.Agent{
 		Name:      conf.AgentName,

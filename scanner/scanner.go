@@ -21,30 +21,32 @@ type Host struct {
 	Lock     *semaphore.Weighted
 }
 
+// ScanPorts scans all the provided ports on an IP/host
 func (host Host) ScanPorts(portList []int, timeout time.Duration) []api.Endpoint {
-	wg := sync.WaitGroup{}
 	ec := make(chan api.Endpoint, len(portList))
 
-	consumerWg := sync.WaitGroup{}
-	consumerWg.Add(1)
+	// Goroutine to collect the found endpoints and add them to a single list of endpoints
+	consumerWG := sync.WaitGroup{}
+	consumerWG.Add(1)
 	var endpointList []api.Endpoint
 	go func() {
-		defer consumerWg.Done()
+		defer consumerWG.Done()
 		for ep := range ec {
 			endpointList = append(endpointList, ep)
 		}
 	}()
 
+	generatorWG := sync.WaitGroup{}
 	for _, port := range portList {
 		err := host.Lock.Acquire(context.TODO(), 1)
 		if err != nil {
 			logrus.Error("Unable to obtain lock")
 			break
 		}
-		wg.Add(1)
+		generatorWG.Add(1)
 		go func(port int) {
 			defer host.Lock.Release(1)
-			defer wg.Done()
+			defer generatorWG.Done()
 			endpoint := host.CheckCert(port, timeout)
 			if endpoint.Name != "" {
 				ec <- endpoint
@@ -52,13 +54,17 @@ func (host Host) ScanPorts(portList []int, timeout time.Duration) []api.Endpoint
 		}(port)
 	}
 
-	wg.Wait()
+	// wait for the collectors to stop and close the endpoint collection channel
+	generatorWG.Wait()
 	close(ec)
-	consumerWg.Wait()
+
+	// wait for the endpoint collector to stop
+	consumerWG.Wait()
 
 	return endpointList
 }
 
+// CheckCert tries to negotiate TLS on a port and collects the certificate if successful
 func (host Host) CheckCert(port int, timeout time.Duration) api.Endpoint {
 	// Skipping the certificate validation is intentional.
 	// This allows for discovery of self-signed and expired certificates
@@ -95,7 +101,7 @@ func (host Host) CheckCert(port int, timeout time.Duration) api.Endpoint {
 		if err != nil {
 			logrus.Debugf("There was a problem setting a deadline: %s\n", err)
 		}
-		// Ignore the output, we don't care
+		// Ignore the output.  Reading from the connection is "polite" and reduces errors on the remote server
 		_, err = tlsConn.Read(buf)
 		if err != nil {
 			logrus.Debugf("There was a problem reading a HTTP response from %s: %s\n", host.Ip, err)
