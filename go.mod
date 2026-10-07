@@ -1,11 +1,11 @@
 module agent
 
-go 1.24.0
+go 1.26.0
 
 require (
-	github.com/sirupsen/logrus v1.9.4
-	golang.org/x/sync v0.19.0
+	github.com/sirupsen/logrus v1.10.2
+	golang.org/x/sync v0.23.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require golang.org/x/sys v0.41.0 // indirect
+require golang.org/x/sys v0.48.0 // indirect

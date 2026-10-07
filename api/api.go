@@ -4,6 +4,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -44,6 +45,7 @@ func (api API) Send() {
 
 	if *api.TestMode {
 		url = api.TestAPIURL
+		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
