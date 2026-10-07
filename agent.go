@@ -34,7 +34,7 @@ func main() {
 	}
 
 	apiKey := conf.ApiKey
-	testUrl := ""
+	testURL := ""
 
 	testMode := flag.Bool("test", false, "Enable test mode")
 	flag.Parse()
@@ -42,7 +42,7 @@ func main() {
 	logrus.Info("Test mode:", *testMode)
 	if *testMode {
 		apiKey = conf.TestApiKey
-		testUrl = conf.TestApiUrl
+		testURL = conf.TestApiUrl
 	}
 
 	sharedLock := semaphore.NewWeighted(ulimit())
@@ -119,5 +119,5 @@ func main() {
 		Endpoints: endpointList,
 	}
 
-	api.API{AgentData: agentData, Key: apiKey, TestMode: testMode, TestApiUrl: testUrl}.Send()
+	api.API{AgentData: agentData, Key: apiKey, TestMode: testMode, TestAPIURL: testURL}.Send()
 }

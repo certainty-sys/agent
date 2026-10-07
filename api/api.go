@@ -1,3 +1,4 @@
+// Package api handles communications with the Certainty Portal API
 package api
 
 import (
@@ -34,7 +35,7 @@ type API struct {
 	AgentData  Agent
 	Key        string
 	TestMode   *bool
-	TestApiUrl string
+	TestAPIURL string
 }
 
 // Send sends the collected data to the Certainty Portal API
@@ -42,7 +43,7 @@ func (api API) Send() {
 	url := "https://portal.certainty-sys.com/api/v1/agents/discovery"
 
 	if *api.TestMode {
-		url = api.TestApiUrl
+		url = api.TestAPIURL
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
