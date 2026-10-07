@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -71,7 +72,14 @@ func (api API) Send() {
 		logrus.Error(err)
 		return
 	}
-	defer res.Body.Close()
+
+	defer func() {
+		err := res.Body.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		logrus.Error(err)

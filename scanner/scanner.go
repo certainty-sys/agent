@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/pem"
 	"fmt"
+	"log"
 	"net"
 	"sync"
 	"time"
@@ -83,7 +84,13 @@ func (host Host) CheckCert(port int, timeout time.Duration) api.Endpoint {
 	if err != nil {
 		return api.Endpoint{}
 	}
-	defer tlsConn.Close()
+
+	defer func() {
+		err := tlsConn.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
 
 	certs := tlsConn.ConnectionState().PeerCertificates
 
